@@ -1,0 +1,50 @@
+name: 'ci'
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - does-it-work
+  pull_request:
+
+permissions:
+  contents: read
+
+# This allows a subsequently queued workflow run to interrupt previous runs
+concurrency:
+  group: '${{ github.workflow }} @ ${{ github.event.pull_request.head.label || github.head_ref || github.ref }}'
+  cancel-in-progress: true
+
+jobs:
+  check-links:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: setup plenv
+        run: |
+          curl -Lo - 'https://github.com/tokuhirom/plenv/archive/refs/tags/2.3.1.tar.gz' | tar -zxvC ~
+          ln -s ~/plenv-2.3.1 ~/.plenv
+          ls -la ~
+          # get this from a tarball instead
+          git clone https://github.com/tokuhirom/Perl-Build.git ~/.plenv/plugins/perl-build/
+
+      - name: add plenv to path
+        run: echo "PATH=~/.plenv/bin:~/.plenv/shims:$PATH" >> $GITHUB_ENV
+
+      - name: install perl
+        run: plenv install 5.36.0
+
+      - name: install carmel
+        run: |
+          plenv install-cpanm
+          cpanm Carmel
+
+      - name: install deps
+        run: plenv exec carmel install
+
+      - name: run tests
+        run: plenv exec carmel exec prove t/
+
